@@ -1,0 +1,138 @@
+#!@GUILE@ \
+-e main -s
+!#
+;; ---------------------------------------------------------------;
+;; geodlp.in - Calculate the x and y positions of points along a
+;;   geodesic line at a specified distance interval
+;;
+;; This file is part of GUILE-PROJ
+;;
+;; Copyright (C) 2018 by Matthew Love <matthew.love@colorado.edu>
+;; GUILE-PROJ is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; GUILE-PROJ is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with GUILE-PROJ.  If not, see <http://www.gnu.org/licenses/>.
+;;
+;; --------------------------------------------------------------;
+
+;;; Code:
+
+(use-modules (ice-9 getopt-long)
+	     (ice-9 rdelim)
+	     (proj geodesic))
+
+(define geodlp-version "0.0.1")
+
+(define %summary "Calculate the x and y positions of points along a geodesic line
+  at a specified distance interval in meters.")
+
+(define (display-help)
+  (format #t "\
+~a
+
+usage: geodlp [ -dehv [args] ] [ files ]
+" %summary))
+
+(define (display-version)
+  (format #t "\
+geodlp (guile-proj) version ~a
+Copyright (C) 2018 Matthew Love
+
+License GPLv3+: GNU GPL 3 or later <http://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+" geodlp-version))
+
+(define command-synopsis
+  '((version (single-char #\v) (value #f))
+    (help (single-char #\h) (value #f))
+    (verbose (single-char #\V) (value #f))
+    (dist (single-char #\d) (value #t))
+    (ellps (single-char #\e) (value #t))))
+
+(define (flatten list)
+  (cond ((null? list) '())
+	((list? (car list)) (append (flatten (car list)) (flatten (cdr list))))
+	(else
+	 (cons (car list) (flatten (cdr list))))))
+
+;; Split a line, using comma, space, tab or pipe as delimiter.
+(define (split-line/delim xyz-line)
+  "Split a line, using comma, space, tab or pipe as delimiter."
+  (flatten
+   (map (lambda (z)
+	  (string-split z #\ht))
+	(flatten 
+	 (map (lambda (y)
+		(string-split y #\|))
+	      (flatten 
+	       (map (lambda (x) (string-split x #\,)) 
+		    (string-split xyz-line #\ ))))))))
+
+;; Format the xy* data
+(define (format-xys inxy)
+  (if (pair? inxy)
+      (begin
+	(format #t "~a " (car inxy))
+	(format-xys (cdr inxy)))
+      (format #t "\n")))
+
+;; Find the positions along GEOD-LINE at DIST
+(define (find-positions geod-line n-positions dist dist_f)
+  (if (> n-positions 0)
+      (let ((geod-pos (geod-position geod-line (* dist dist_f))))
+	(format-xys (list (cadr geod-pos) (car geod-pos) 0))
+	(find-positions geod-line (- n-positions 1) dist (+ 1 dist_f)))))
+
+;; Process the input line based on ELLPS and DIST.
+(define (proc-line line ellps dist)
+  (if (pair? line)
+      (let* ((geod1 (geod-init-ellps ellps))
+	     (geod-line (geod-inverse-line
+			 geod1 (string->number (cadr line))
+			 (string->number (car line))
+			 (string->number (cadddr line))
+			 (string->number (caddr line))))
+	     (geod-dist (geod-inverse
+			 geod1 (string->number (cadr line))
+			 (string->number (car line))
+			 (string->number (cadddr line))
+			 (string->number (caddr line)))))
+	(find-positions
+	 geod-line
+	 (/ (car geod-dist)
+	    (string->number dist))
+	 (string->number dist) 1))))
+
+;; geodlp mainline
+(define (main args)
+  (let* ((options (getopt-long args command-synopsis))
+	 (help-wanted (option-ref options 'help #f))
+	 (verbose (option-ref options 'verbose #f))
+	 (dist (option-ref options 'dist "10"))
+	 (ellps (option-ref options 'ellps "WGS84"))
+	 (version-wanted (option-ref options 'version #f)))
+    (cond
+     (version-wanted (display-version))
+     (help-wanted (display-help))
+     (else
+      (let ((input (option-ref options '() #f)))
+	(let ((infile (if (not (pair? input))
+			  (current-input-port)
+			  (open-file (car input) "r"))))
+	  ;; Loop through the points.
+	  (let loop ((tmp-line (read-line infile)))
+	    (if (not (eof-object? tmp-line))
+		(proc-line (split-line/delim tmp-line) ellps dist))
+	    (if (not (eof-object? (peek-char infile)))
+		(loop (read-line infile))))
+	  (close infile)))))))
+;;; End

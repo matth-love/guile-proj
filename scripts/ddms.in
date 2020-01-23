@@ -1,0 +1,126 @@
+#!@GUILE@ \
+-e main
+!#
+;; ---------------------------------------------------------------;
+;;; ddms.in - output geographic points to/from dms and dd
+;;
+;; This file is part of GUILE-PROJ
+;;
+;; Copyright (C) 2018 by Matthew Love <matthew.love@colorado.edu>
+;; GUILE-PROJ is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; GUILE-PROJ is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with GUILE-PROJ.  If not, see <http://www.gnu.org/licenses/>.
+;;
+;; --------------------------------------------------------------;
+;;; Commentary:
+;;
+;; Translate between decimal degrees and degree(d)minute(')second(")
+;;
+;;; Code:
+
+(use-modules (ice-9 getopt-long)
+	     (ice-9 rdelim)
+	     (proj proj))
+
+(define ddms-version "0.0.1")
+
+(define %summary "Translate between decimal degrees and dms.")
+
+(define (display-help)
+  (format #t "\
+~a
+
+usage: ddms [ -hivw [args] ] [ files ]
+" %summary))
+  
+(define (display-version)
+  (format #t "\
+ddms version ~a (guile-proj) ~a (proj) ~a
+Copyright (C) 2018 Matthew Love
+
+License LGPLv3+: GNU LGPL 3 or later <http://gnu.org/licenses/lgpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+" ddms-version pj-guile-inq-libvers pj-inq-libvers))
+
+(define command-synopsis
+  '((version (single-char #\v) (value #f))
+    (help (single-char #\h) (value #f))
+    (invert (single-char #\i) (value #f))
+    (dmsp (single-char #\w) (value #t))
+    (verbose (single-char #\V) (value #f))))
+
+(define (flatten list)
+  (cond ((null? list) '())
+	((list? (car list)) (append (flatten (car list)) (flatten (cdr list))))
+	(else
+	 (cons (car list) (flatten (cdr list))))))
+
+(define (split-line/delim xyz-line)
+  "Split a line, using comma, space, tab or pipe as delimiter"
+  (flatten
+   (map (lambda (z)
+	  (string-split z #\ht))
+	(flatten 
+	 (map (lambda (y)
+		(string-split y #\|))
+	      (flatten 
+	       (map (lambda (x) (string-split x #\,)) 
+		    (string-split xyz-line #\ ))))))))
+
+(define (format-xys inxy)
+  (if (pair? inxy)
+      (begin
+	(format #t "~a " (car inxy))
+	(format-xys (cdr inxy)))))
+
+(define (proc-ddms-line line)
+  (if (pair? line)
+      (let ((dds (list (* rad2deg (pj-dms->r (car line)))))
+	    (dms (list (pj-r->dms (pj-dms->r (car line)) #\+ #\-))))
+	(format-xys (reverse dds))
+	(format-xys (reverse dms))
+	(proc-ddms-line (cdr line)))
+      (format #t "\n")))
+
+(define (loop-infile infile)
+  (if (not (eof-object? (peek-char infile)))
+      (let ((tmp-line (read-line infile)))
+	(proc-ddms-line (split-line/delim tmp-line))
+	(loop-infile (read-line infile)))))
+
+(define (ddms args)
+  (let ((options (getopt-long args command-synopsis)))
+    (let ((help-wanted (option-ref options 'help #f))
+	  (version-wanted (option-ref options 'version #f))
+	  (invert (option-ref options 'invert #f))
+	  (dmsp (option-ref options 'dmsp "0"))
+	  (verbose (option-ref options 'verbose #f)))
+      (cond
+       (version-wanted (display-version))
+       (help-wanted (display-help))
+       (else
+	(let ((input (option-ref options '() #f)))
+	  (if (and (number? (string->number dmsp)) (not (eq? dmsp "0")))
+	      (pj-set-r->dms (string->number dmsp)))
+	  (let ((infile (if (not (pair? input))
+			    (current-input-port)
+			    (open-file (car input) "r"))))
+	    (let loop ((tmp-line (read-line infile)))
+	      (if (not (eof-object? tmp-line))
+		  (proc-ddms-line (split-line/delim tmp-line)))
+	      (if (not (eof-object? (peek-char infile)))
+		  (loop (read-line infile))))
+	    (close infile))))))))
+
+(define main ddms)    
+;;---END
