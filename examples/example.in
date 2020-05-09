@@ -1,0 +1,46 @@
+#!@GUILE@
+!#
+;; ---------------------------------------------------------
+;; Example progam from pj_init manpage in scheme.
+;;
+;; The following program reads latitude and longitude values
+;; in decimal degrees, performs Mercator projection with a
+;; Clarke 1866 ellipsoid and a 33Â° latitude of true scale
+;; and prints the projected cartesian values in meters:
+;; ---------------------------------------------------------
+;;
+;; #include <proj_api.h>
+;;
+;; main(int argc, char **argv) {
+;;   char *args[] = { "proj=merc", "ellps=clrk66", "lat_ts=33" };
+;;   projUV p;
+;;   projPJ pj;
+;;  
+;;   if (!(pj = pj_init(3, args)))
+;;     exit(1);
+;;   while (scanf("%lf %lf", &p.v, &p.u) == 2) {
+;;     p.u *= DEG_TO_RAD;
+;;     p.v *= DEG_TO_RAD;
+;;     p = pj_fwd(p, pj);
+;;     printf("%.2f\t%.2f\n", p.u, p.v);
+;;   }
+;;   exit(0);
+;; }
+;; ---------------------------------------------------------
+
+(use-modules (ice-9 rdelim)
+	     (proj projects))
+
+(define clrk (pj-init '("proj=merc" "ellps=clrk66" "lat_ts=33")))
+
+(define (split-line inline)
+  (map (lambda (coord)
+	 (* deg2rad (string->number coord)))
+       (string-split inline #\sp)))
+
+(let loop ((tmp-line (read-line (current-input-port))))
+  (if (not (eof-object? tmp-line))
+      (let ((dxy (pj-fwd->scm (split-line tmp-line) clrk)))
+	(if dxy (format #t "~a ~a\n" (car dxy) (cadr dxy)))))
+  (if (not (eof-object? (peek-char (current-input-port))))
+      (loop (read-line (current-input-port)))))
