@@ -29,7 +29,7 @@
 
 (use-modules (ice-9 getopt-long)
 	     (ice-9 rdelim)
-	     (proj proj))
+	     (proj projects))
 
 (define ddms-version "0.0.1")
 

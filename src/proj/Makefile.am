@@ -28,8 +28,8 @@ SUFFIXES: .x
 
 guileextension_LTLIBRARIES= libguile-proj.la
 
-##libguile_proj_la_SOURCES = geodesic_guile.c proj_guile.c
-libguile_proj_la_SOURCES = proj_guile.c
+libguile_proj_la_SOURCES = geodesic_guile.c proj_guile.c
+#libguile_proj_la_SOURCES = proj_guile.c
 
 libguile_proj_la_CPPFLAGS = $(GUILE_CFLAGS)
 
@@ -53,8 +53,8 @@ endif
 
 ### scheme files ###
 pkgguilesitedir = $(guilesitedir)/proj
-## dist_pkgguilesite_DATA = projects.scm geodesic.scm
-dist_pkgguilesite_DATA = projects.scm
+dist_pkgguilesite_DATA = projects.scm geodesic.scm
+##dist_pkgguilesite_DATA = projects.scm
 
 ### compiled scheme files ###
 
@@ -71,7 +71,7 @@ guilec_opts = --load-path=$(abs_top_srcdir)/src/
 	$(GUILD) compile --target="$(host)" $(GUILEC_FLAGS) $(guilec_opts)\
 	 -L "$(abs_builddir)/.." -L "$(abs_srcdir)/.." -o "$@" "$<"
 
-## ETAGS_ARGS = projects.scm geodesic.scm
-ETAGS_ARGS = projects.scm
+ETAGS_ARGS = projects.scm geodesic.scm
+## ETAGS_ARGS = projects.scm
 
 CLEANFILES = $(pkgguileobject_DATA)
